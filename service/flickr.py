@@ -26,14 +26,15 @@ class Flickr(Base):
             return res
     
     def generate_photo_urls(self, data):
+        urls = {}
         soup = BeautifulSoup(data.text, "html.parser")
         script_data = soup.find('script', 'modelExport').text
         script_data = re.search('%s(.*)%s' % ("modelExport:", ","), script_data).group(1)
         if not script_data:
             self.logger.error("could not extract photos data from javascript!")
-            return []
+            return urls
         try:
-            urls = {}
+
             test = json.loads(script_data)
             for photo  in test.get("search-photos-lite-models")[0].get("photos").get("_data"):
                 urls.setdefault(photo.get("pathAlias"), []).append(Flickr.PHOTO_URL.format(username=photo.get("pathAlias")
@@ -41,6 +42,7 @@ class Flickr(Base):
             return urls
         except ValueError, e:
             self.logger.error("could not convert data to JSON. exception : %s", e)
+            return urls
     
     def crawl(self):
         with self.worker_pool as executor:
