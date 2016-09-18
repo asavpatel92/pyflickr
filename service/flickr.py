@@ -17,7 +17,24 @@ class Flickr(Base):
         super(Flickr, self).__init__()
         self.urls = urls
         self.worker_pool = ThreadPoolExecutor(max_workers=Flickr.WORKER_THREADS)
+    
+    
+    def add_to_worker_queue(self, task, callback, **kwargs):
+        # using with statement to ensure threads are cleaned up promptly
+        with self.worker_pool as executor:
+            running_tasks = {executor.submit(task, **kwargs)}
         
+        for future in concurrent.futures.as_completed(running_tasks):
+            try:
+                result = future.result()
+            except Exception as exc:
+                    self.logger.error('URL : %r, generated an exception: %s' , running_tasks.get(future), exc)
+            else:
+                callback(result)
+
+    def crawl(self):
+        for url in self.urls:
+            self.add_to_worker_queue(self.load_url, self.generate_photo_urls, url=[url])    
     
     def load_url(self, url):
         response = self.make_requests(urls=url)
@@ -25,6 +42,12 @@ class Flickr(Base):
         for res in response:
             return res
     
+    """
+    Sends concurrent requests to the list of urls passed
+        @param data: http response object
+    Returns:
+        dict: returns a dictionary which contains photo urls grouped by username --> {"username" : [urls] }
+    """
     def generate_photo_urls(self, data):
         urls = {}
         soup = BeautifulSoup(data.text, "html.parser")
@@ -44,14 +67,5 @@ class Flickr(Base):
             self.logger.error("could not convert data to JSON. exception : %s", e)
             return urls
     
-    def crawl(self):
-        with self.worker_pool as executor:
-            running_tasks = {executor.submit(self.load_url, [url]): url for url in self.urls}
-            print (running_tasks)
-            for future in concurrent.futures.as_completed(running_tasks):
-                try:
-                    data = future.result()
-                except Exception as exc:
-                    self.logger.error('URL : %r, generated an exception: %s' , running_tasks.get(future), exc)
-                else:
-                    photo_urls = self.generate_photo_urls(data)
+    def extract_photo_data(self,):    
+        pass
