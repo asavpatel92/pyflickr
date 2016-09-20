@@ -17,7 +17,7 @@ class Base(object):
 
     """
     Sends concurrent requests to the list of urls passed
-        @param urls: list
+        @param url: request url
     Returns:
         generator: returns a generator of responses.
     """
