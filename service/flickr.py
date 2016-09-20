@@ -12,16 +12,19 @@ class Flickr(Base):
     WORKER_THREADS = settings.WORKER_THREADS
     PHOTO_URL = "https://www.flickr.com/photos/{username}/{photo_id}"
     
-    def __init__(self, urls):
+    def __init__(self, urls, callback):
         super(Flickr, self).__init__()
         self.urls = urls
         self.worker_pool = ThreadPoolExecutor(max_workers=Flickr.WORKER_THREADS)
+        self.metadata = []
+        self.callback = callback
     
     def __enter__(self):
         return self
          
     def __exit__(self, exception_type, exception_value, traceback):
         self.worker_pool.shutdown(wait=True)
+        self.callback(self.metadata)
         return True
 
     
@@ -35,18 +38,19 @@ class Flickr(Base):
             self.load_url(url, callback=self.handle_response)
         return
     
-    def load_url(self, url, callback):
+    def load_url(self, url, callback=None):
         response = self.make_request(url=url)
         # response is a generator, so to get the data out of it need to iterate through it.
         for res in response:
+            if not callback: return res
             callback(res)
-    
+                
     def handle_response(self, response):
         photo_urls = self.generate_photo_urls(response)
         for url in photo_urls:
             # now using a thread per url to make concurrent requests to fetch photos data
-            self.add_to_worker_queue(task=self.extract_photo_metadata
-                                     , callback=self.save_photo_metadata
+            self.add_to_worker_queue(task=self.load_url
+                                     , callback=self.extract_photo_metadata
                                      , url=url)
         return    
 
@@ -63,19 +67,20 @@ class Flickr(Base):
                 urls.append(Flickr.PHOTO_URL.format(username=photo.get("pathAlias"), photo_id=photo.get("id")))
         return urls
     
-    def extract_photo_metadata(self, url):
-        metadata = []
-        response = self.make_request(url=url)
-        for res in response:
-            script_data = self.__extract_script_data(res.text)
-            geo_info = script_data.get("photo-geo-models")[0]
-            image_info = script_data.get("photo-head-meta-models")[0]
-            metadata.append({"id" : image_info.get("id")
-                             , "url" : image_info.get("og:image")
-                             , "latitude" : geo_info.get("latitude")
-                             , "longitude" : geo_info.get("longitude")
-                             , "isPublic" : geo_info.get("isPublic")})
-        return metadata
+    def extract_photo_metadata(self, future):
+        response = future.result()
+        script_data = self.__extract_script_data(response.text)
+        geo_info = script_data.get("photo-geo-models")[0]
+        image_info = script_data.get("photo-head-meta-models")[0]
+        self.metadata.append({"id" : image_info.get("id")
+                         , "image_url" : image_info.get("og:image")
+                         , "latitude" : geo_info.get("latitude")
+                         , "longitude" : geo_info.get("longitude")
+                         , "isPublic" : geo_info.get("isPublic")
+                         , "url" : image_info.get("og:url")
+                         , "title" : image_info.get("title")
+                         , "description" : image_info.get("og:description")})
+        return
             
             
     def save_photo_metadata(self, future):
