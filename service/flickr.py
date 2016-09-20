@@ -12,7 +12,7 @@ class Flickr(Base):
     WORKER_THREADS = settings.WORKER_THREADS
     PHOTO_URL = "https://www.flickr.com/photos/{username}/{photo_id}"
     
-    def __init__(self, urls, callback):
+    def __init__(self, urls, callback=None):
         super(Flickr, self).__init__()
         self.urls = urls
         self.worker_pool = ThreadPoolExecutor(max_workers=Flickr.WORKER_THREADS)
@@ -23,13 +23,16 @@ class Flickr(Base):
         return self
          
     def __exit__(self, exception_type, exception_value, traceback):
+        self.logger.info("waiting for all threads to complete.")
         self.worker_pool.shutdown(wait=True)
-        self.callback(self.metadata)
+        if self.callback:
+            self.logger.info("sending data back to main thread.")
+            self.callback(self.metadata)
         return True
 
     
     def add_to_worker_queue(self, task, callback, **kwargs):
-        self.logger.info("Adding task %s to worker pool.", task.func_name)
+        self.logger.info("Adding task '%s' to worker pool.", task.func_name)
         self.worker_pool.submit(task, **kwargs).add_done_callback(callback)
         return
 
@@ -72,14 +75,16 @@ class Flickr(Base):
         script_data = self.__extract_script_data(response.text)
         geo_info = script_data.get("photo-geo-models")[0]
         image_info = script_data.get("photo-head-meta-models")[0]
+        owner_info = script_data.get("photo-models")[0].get("owner")
         self.metadata.append({"id" : image_info.get("id")
-                         , "image_url" : image_info.get("og:image")
-                         , "latitude" : geo_info.get("latitude")
-                         , "longitude" : geo_info.get("longitude")
-                         , "isPublic" : geo_info.get("isPublic")
-                         , "url" : image_info.get("og:url")
-                         , "title" : image_info.get("title")
-                         , "description" : image_info.get("og:description")})
+                              , "username" : owner_info.get("pathAlias")
+                              , "image_url" : image_info.get("og:image")
+                              , "latitude" : geo_info.get("latitude")
+                              , "longitude" : geo_info.get("longitude")
+                              , "isPublic" : geo_info.get("isPublic")
+                              , "url" : image_info.get("og:url")
+                              , "title" : image_info.get("title")
+                              , "description" : image_info.get("og:description")})
         return
             
             

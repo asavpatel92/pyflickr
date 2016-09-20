@@ -7,3 +7,6 @@ log = { "file": "../crawler.log"
        , "max_size": 10000000
        , "backup_count": 10
    }
+
+
+DATABASE = "db/pyflickr.db"
