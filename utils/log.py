@@ -1,7 +1,8 @@
 import logging
-from logging import handlers
 
 import settings
+from logging import handlers
+
 
 class Log(object):
     # setting up logger information.
@@ -18,9 +19,15 @@ class Log(object):
                                               , maxBytes=max_size
                                               , backupCount=backup_count)
         handler.setFormatter(logFormatter)
-        logger = logging.getLogger("crawler")
+        
+        # setting console level logs
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        
+        logger = logging.getLogger("pyflickr")
         logger.setLevel(level)
         logger.addHandler(handler)
+        logger.addHandler(ch)
         return logger
 
     @property

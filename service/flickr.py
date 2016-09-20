@@ -7,7 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 from base import Base
 import settings
 
-
 class Flickr(Base):
     
     WORKER_THREADS = settings.WORKER_THREADS
@@ -18,28 +17,29 @@ class Flickr(Base):
         self.urls = urls
         self.worker_pool = ThreadPoolExecutor(max_workers=Flickr.WORKER_THREADS)
     
+    def __enter__(self):
+        return self
+         
+    def __exit__(self, exception_type, exception_value, traceback):
+        self.worker_pool.shutdown(wait=True)
+        return True
+
     
     def add_to_worker_queue(self, task, callback, **kwargs):
         self.logger.info("Adding task %s to worker pool.", task.func_name)
-        future = self.worker_pool.submit(task, **kwargs)
-        future.add_done_callback(callback)
-        self.fs.append(future)
+        self.worker_pool.submit(task, **kwargs).add_done_callback(callback)
         return
 
     def crawl(self):
         for url in self.urls:
-            self.add_to_worker_queue(self.load_url, self.handle_response, url=[url])
+            self.load_url([url], callback=self.handle_response)
         return
     
-    def stop(self):
-        self.worker_pool.shutdown(wait=True)
-        return
-    
-    def load_url(self, url):
+    def load_url(self, url, callback):
         response = self.make_requests(urls=url)
         # response is a generator, so to get the data out of it need to iterate through it.
         for res in response:
-            return res
+            callback(res)
     
     def handle_response(self, response):
         photo_urls = self.generate_photo_urls(response)
@@ -54,8 +54,7 @@ class Flickr(Base):
     Returns:
         dict: returns a dictionary which contains photo urls grouped by username --> {"username" : [urls] }
     """
-    def generate_photo_urls(self, future):
-        response = future.result()
+    def generate_photo_urls(self, response):
         urls = {}
         script_data = self.__extract_script_data(response.text)
         if script_data:
