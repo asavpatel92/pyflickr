@@ -1,6 +1,6 @@
 import logging
 
-WORKER_THREADS = 8
+WORKER_THREADS = 80
 
 log = { "file": "../crawler.log"
        , "level": logging.DEBUG

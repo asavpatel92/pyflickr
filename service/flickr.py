@@ -32,40 +32,40 @@ class Flickr(Base):
 
     def crawl(self):
         for url in self.urls:
-            self.load_url([url], callback=self.handle_response)
+            self.load_url(url, callback=self.handle_response)
         return
     
     def load_url(self, url, callback):
-        response = self.make_requests(urls=url)
+        response = self.make_request(url=url)
         # response is a generator, so to get the data out of it need to iterate through it.
         for res in response:
             callback(res)
     
     def handle_response(self, response):
         photo_urls = self.generate_photo_urls(response)
-        for urls in photo_urls.values():
-            # now using a thread per username to make concurrent requests to fetch photos data
-            self.add_to_worker_queue(self.extract_photo_metadata, self.save_photo_metadata, urls=urls)
+        for url in photo_urls:
+            # now using a thread per url to make concurrent requests to fetch photos data
+            self.add_to_worker_queue(task=self.extract_photo_metadata
+                                     , callback=self.save_photo_metadata
+                                     , url=url)
         return    
 
     """
-    Sends concurrent requests to the list of urls passed
         @param data: http response object
     Returns:
-        dict: returns a dictionary which contains photo urls grouped by username --> {"username" : [urls] }
+        list: returns a list of individual photo urls from the main page
     """
     def generate_photo_urls(self, response):
-        urls = {}
+        urls = []
         script_data = self.__extract_script_data(response.text)
         if script_data:
             for photo  in script_data.get("search-photos-lite-models")[0].get("photos").get("_data"):
-                urls.setdefault(photo.get("pathAlias"), []).append(Flickr.PHOTO_URL.format(username=photo.get("pathAlias")
-                                                                                           , photo_id=photo.get("id")))
+                urls.append(Flickr.PHOTO_URL.format(username=photo.get("pathAlias"), photo_id=photo.get("id")))
         return urls
     
-    def extract_photo_metadata(self, urls):
+    def extract_photo_metadata(self, url):
         metadata = []
-        response = self.make_requests(urls)
+        response = self.make_request(url=url)
         for res in response:
             script_data = self.__extract_script_data(res.text)
             geo_info = script_data.get("photo-geo-models")[0]
