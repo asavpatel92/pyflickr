@@ -112,12 +112,16 @@ class Flickr(Base):
             extracts javascript from html text for a script tag 
         """
         soup = BeautifulSoup(html_res, "html.parser")
-        script_data = soup.find('script', tag_id).text
-        script_data = re.search('%s:(.*)%s' % (tag_id, ","), script_data).group(1)
-        if not script_data:
-            self.logger.error("could not extract photos data from javascript!")
-        try:
-            script_data = json.loads(script_data)
-        except ValueError, e:
-            self.logger.error("could not convert data to JSON. exception : %s", e)
-        return script_data
+        script = soup.find('script', tag_id)
+        if script:
+            script_data = script.text
+            script_data = re.search('%s:(.*)%s' % (tag_id, ","), script_data).group(1)
+            if not script_data:
+                self.logger.error("could not extract photos data from javascript!")
+            try:
+                script_data = json.loads(script_data)
+            except ValueError, e:
+                self.logger.error("could not convert data to JSON. exception : %s", e)
+            return script_data
+        self.logger.info("invalid url. no javascript tag '%s' found on the page.", tag_id)
+        return None
