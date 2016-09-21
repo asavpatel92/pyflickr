@@ -22,23 +22,20 @@ class Flickr(Base):
     def __enter__(self):
         return self
         
-    """
-        to clear up thread pool resources correctly
-    """
     def __exit__(self, exception_type, exception_value, traceback):
+        """
+            to clear up thread pool resources correctly
+        """
         self.logger.info("waiting for all threads to complete.")
         self.worker_pool.shutdown(wait=True)
-        if self.callback:
-            self.logger.info("sending data back to main thread.")
-            self.callback(self.metadata)
-            self.logger.info("execution finished.")
+        self.logger.info("execution finished.")
         return True
 
     
-    """
-        adds a task to the thread pool and hooks a callback to the future object
-    """
     def add_to_worker_queue(self, task, callback, **kwargs):
+        """
+            adds a task to the thread pool and hooks a callback to the future object
+        """        
         self.logger.info("Adding task '%s' to worker pool.", task.func_name)
         self.worker_pool.submit(task, **kwargs).add_done_callback(callback)
         return
@@ -46,12 +43,12 @@ class Flickr(Base):
     def crawl(self):
         for url in self.urls:
             self.load_url(url, callback=self.handle_response)
-        return
+        return None
     
-    """
-        makes an http request to the passed url and an optional callback to process the response object
-    """
     def load_url(self, url, callback=None):
+        """
+            makes an http request to the passed url and an optional callback to process the response object
+        """        
         response = self.make_request(url=url)
         response = next(response)
         # response is a generator, so to get the data out of it need to iterate through it.
@@ -61,18 +58,18 @@ class Flickr(Base):
     def handle_response(self, response):
         photo_urls = self.generate_photo_urls(response)
         for url in photo_urls:
-            # now using a thread per url to make concurrent requests to fetch photos data
+            # now adding each url to thread pool
             self.add_to_worker_queue(task=self.load_url
                                      , callback=self.extract_photo_metadata
                                      , url=url)
-        return
+        return None
 
-    """
-        @param response: http response object
-    Returns:
-        list: returns a list of individual photo urls from the main page
-    """
     def generate_photo_urls(self, response):
+        """
+            @param response: http response object
+        Returns:
+            list: returns a list of individual photo urls from the main page
+        """
         urls = []
         script_data = self.__extract_script_data(response.text, "modelExport")
         if script_data:
@@ -80,12 +77,12 @@ class Flickr(Base):
                 urls.append(Flickr.PHOTO_URL.format(username=photo.get("pathAlias"), photo_id=photo.get("id")))
         return urls
     
-    """
-        @param future: a future object
-    Returns:
-        dict : dictionary containing photo metadata
-    """
     def extract_photo_metadata(self, response):
+        """
+            @param future: a future object
+        Returns:
+            dict : dictionary containing photo metadata
+        """
         try:
             # response is a future object when function is passed in the callback
             response = response.result()
@@ -105,13 +102,15 @@ class Flickr(Base):
                       , "url" : image_info.get("og:url")
                       , "title" : image_info.get("title")
                       , "description" : image_info.get("og:description")}
-        self.metadata.append(photo_meta)
+        if self.callback:
+            self.logger.info("sending data back to main thread.")
+            self.callback(photo_meta)
         return photo_meta
-            
-    """
-        extracts javascript from html text for a script tag 
-    """
+
     def __extract_script_data(self, html_res, tag_id):
+        """
+            extracts javascript from html text for a script tag 
+        """
         soup = BeautifulSoup(html_res, "html.parser")
         script_data = soup.find('script', tag_id).text
         script_data = re.search('%s:(.*)%s' % (tag_id, ","), script_data).group(1)
