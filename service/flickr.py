@@ -89,23 +89,25 @@ class Flickr(Base):
         except AttributeError:
             pass
         script_data = self.__extract_script_data(response.text, "modelExport")
-        geo_info = script_data.get("photo-geo-models")[0]
-        image_info = script_data.get("photo-head-meta-models")[0]
-        owner_info = script_data.get("photo-models")[0].get("owner")
-        
-        photo_meta = {"id" : image_info.get("id")
-                      , "username" : owner_info.get("pathAlias")
-                      , "image_url" : image_info.get("og:image")
-                      , "latitude" : geo_info.get("latitude")
-                      , "longitude" : geo_info.get("longitude")
-                      , "isPublic" : geo_info.get("isPublic")
-                      , "url" : image_info.get("og:url")
-                      , "title" : image_info.get("title")
-                      , "description" : image_info.get("og:description")}
-        if self.callback:
-            self.logger.info("sending data back to main thread.")
-            self.callback(photo_meta)
-        return photo_meta
+        if script_data:
+            geo_info = script_data.get("photo-geo-models")[0]
+            image_info = script_data.get("photo-head-meta-models")[0]
+            owner_info = script_data.get("photo-models")[0].get("owner")
+            
+            photo_meta = {"id" : image_info.get("id")
+                          , "username" : owner_info.get("pathAlias")
+                          , "image_url" : image_info.get("og:image")
+                          , "latitude" : geo_info.get("latitude")
+                          , "longitude" : geo_info.get("longitude")
+                          , "isPublic" : geo_info.get("isPublic")
+                          , "url" : image_info.get("og:url")
+                          , "title" : image_info.get("title")
+                          , "description" : image_info.get("og:description")}
+            if self.callback:
+                self.logger.info("sending data back to main thread.")
+                self.callback(photo_meta)
+            return photo_meta
+        return {}
 
     def __extract_script_data(self, html_res, tag_id):
         """
