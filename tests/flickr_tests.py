@@ -12,6 +12,10 @@ class TestCases(unittest.TestCase):
         response = self.flickr_crawler.make_request("https://www.flickr.com/search/?text=rome")
         response = next(response)
         self.assertEqual(25, len(self.flickr_crawler.generate_photo_urls(response)), "page returned 25 photos")
+        
+        response = self.flickr_crawler.make_request("https://www.google.com")
+        response = next(response)
+        self.assertEqual(0, len(self.flickr_crawler.generate_photo_urls(response)), "page returned 0 photos")
             
     def test_extract_photo_metadata(self):
         expected = {'username': u'guidobarberis', 'url': u'https://www.flickr.com/photos/guidobarberis/26844098895/'
@@ -21,6 +25,10 @@ class TestCases(unittest.TestCase):
         response = self.flickr_crawler.make_request("https://www.flickr.com/photos/guidobarberis/26844098895/")
         response = next(response)
         self.assertEquals(expected, self.flickr_crawler.extract_photo_metadata(response), "matches expacted metadata")
+
+        response = self.flickr_crawler.make_request("https://www.google.com/")
+        response = next(response)
+        self.assertFalse(self.flickr_crawler.extract_photo_metadata(response), "no metadata found")
 
 if __name__ == "__main__":
     unittest.main()
