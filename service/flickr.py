@@ -12,7 +12,7 @@ class Flickr(Base):
     WORKER_THREADS = settings.WORKER_THREADS
     PHOTO_URL = "https://www.flickr.com/photos/{username}/{photo_id}"
     
-    def __init__(self, urls, callback=None):
+    def __init__(self, urls=[], callback=None):
         super(Flickr, self).__init__()
         self.urls = urls
         self.worker_pool = ThreadPoolExecutor(max_workers=Flickr.WORKER_THREADS)
@@ -31,6 +31,7 @@ class Flickr(Base):
         if self.callback:
             self.logger.info("sending data back to main thread.")
             self.callback(self.metadata)
+            self.logger.info("execution finished.")
         return True
 
     
@@ -52,10 +53,10 @@ class Flickr(Base):
     """
     def load_url(self, url, callback=None):
         response = self.make_request(url=url)
+        response = next(response)
         # response is a generator, so to get the data out of it need to iterate through it.
-        for res in response:
-            if not callback: return res
-            callback(res)
+        if not callback: return response
+        callback(response)
                 
     def handle_response(self, response):
         photo_urls = self.generate_photo_urls(response)
@@ -84,8 +85,12 @@ class Flickr(Base):
     Returns:
         dict : dictionary containing photo metadata
     """
-    def extract_photo_metadata(self, future):
-        response = future.result()
+    def extract_photo_metadata(self, response):
+        try:
+            # response is a future object when function is passed in the callback
+            response = response.result()
+        except AttributeError:
+            pass
         script_data = self.__extract_script_data(response.text, "modelExport")
         geo_info = script_data.get("photo-geo-models")[0]
         image_info = script_data.get("photo-head-meta-models")[0]
